@@ -7,18 +7,30 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 import torch.nn.functional as F
+from sklearn.metrics import r2_score
 
+from pn.input import *
+import pn.p5_utils as p5u
 class Config:
     def __init__(self, subject_num, use_general_params = False,main_data_path = 'D:\\Becca\\Data\\PN_preprocessed'):
         # experiment parameters 
 
+
         # Subject Info
         #self.main_data_path = '/home/becca/Data/PN_preprocessed/'  # on corticom training
         self.main_data_path = main_data_path # on lab windows box
+        PROJECT_ROOT = Path(__file__).resolve().parents[2]
+        self.probe_map_path = PROJECT_ROOT.joinpath("config", "Precision_map_v2.xml")
+
+        self.patience = 5
+        #self.smooth_train_ms = None
+        #self.smooth_val_ms = None
+        #self.fs_hz = None
+
+        self.smooth_train_ms = 40.0
+        self.smooth_val_ms = 100.0
+        self.fs_hz = 100
         
-        self.smooth_train_ms = None
-        self.smooth_val_ms = None
-        self.fs_hz = None
         match subject_num:
             case 3:
                 self.patient = Path(self.main_data_path + "/NSR-004-003").expanduser()
@@ -210,7 +222,6 @@ class Config:
 
                 ]
 
-
                 
                 # Model parameters
                 # CNNN
@@ -301,8 +312,8 @@ class Config:
                 self.trial_length = 400        
                 # Model parameters
                 # CNNN
-                self.grid_dim_x =  32
-                self.grid_dim_y =  32
+                self.grid_dim_x =  33
+                self.grid_dim_y =  33
 
                 self.num_kernels = 2
                 self.spatial_kernel_size = 6
@@ -389,6 +400,82 @@ class Config:
         self.epochs = epochs
         print(f'Epochs updated to {self.epochs}')
 
+
+class CNN2D_LSTM(nn.Module):
+    """
+    Bi‑LSTM whose inputs are (batch, time, channels, features) exactly
+    like CRNN.  We first collapse (channels × features) with a Conv1d
+    layer, then feed the result to a bidirectional LSTM.
+    """
+
+    def __init__(self, config: Config):
+        super().__init__()
+
+        self.config = config
+        directions = 2 if config.bidirectional else 1
+
+        self.input_dropout = nn.Dropout(config.cnn_dropout)
+
+
+        self.preprocessing_conv = nn.Conv3d(
+            in_channels = 1, 
+            out_channels = config.num_kernels, # num kernels 
+            kernel_size = (config.spatial_kernel_size, config.spatial_kernel_size, config.temporal_kernel_size),
+            stride= (config.spatial_kernel_stride, config.spatial_kernel_stride, config.temporal_kernel_stride),  
+            padding = (config.spatial_kernel_padding, config.spatial_kernel_padding, config.temporal_kernel_padding)  )  
+
+    
+
+
+        self.lstm = nn.LSTM(
+            input_size=config.in_channels,
+            hidden_size=config.rnn_hidden_size,
+            num_layers=config.rnn_layers,
+            dropout=config.rnn_dropout,
+            bidirectional=config.bidirectional )
+        
+
+        self.fc = nn.Linear(config.rnn_hidden_size * directions, config.n_labels)
+        
+    def forward(self, x, state=None):
+        """
+        Expects x.shape == (batch, time, channels, features)
+        """
+        # X: B, x, y, T F 
+        B, Xd, Yd, T, F = x.shape
+
+        print(f'input shape {x.shape}')       #[64, 32, 32, 100, 1]
+        
+        #x = x.contiguous().moveaxis(2, 3).reshape(B, T, C * F).permute(0, 2, 1)
+        
+        x =x.contiguous().permute(0,4,1,2,3)
+        print(f'data resized to {x.shape}')
+
+        
+        x = self.input_dropout(x)  # dropout on raw inputs
+        print(f'data size after dropout {x.shape}')  # [64, 1, 32, 32, 100]
+        
+  
+        # shape into conv layer (N,Cin,Din,Hin,Win) 
+ 
+        x = self.preprocessing_conv(x)  # 3‑D conv
+        print(f'size after convolutions {x.shape}')
+ 
+        x = torch.flatten(x, start_dim = 1,end_dim = 3)   # flatten out the x,y convs
+        print(f'shape after flattening {x.shape}')
+        
+        x = x.permute(2, 0, 1)  # shape -> (time, batch, features)
+        print(f'size going into LSTM {x.shape}')
+        
+        lstm_out, state = self.lstm(x, state)  # Bi‑LSTM
+        print(f'Out of LSTM {lstm_out.shape}')
+        
+        out = lstm_out[-1]  
+        #print(f'out shape [out.shape]') 
+        
+        out = self.fc(out)  # final projection
+        return out
+
 class FrameDataset2D(Dataset):
     def __init__(self, frames_list, vxs_list, vys_list, trial_length = 100, stride = 20):
         self.windows = []  
@@ -418,17 +505,135 @@ class FrameDataset2D(Dataset):
 
         return x, y
 
+def get_dataloaders(config, x_set = [], y_set = []):
+    main_data_path = config.main_data_path
+    #main_data_path = '/home/becca/Data/PN_preprocessed/'
+    #subject_num = 3
+    electrode_x, electrode_y = electrode_map(probe_map_path=config.probe_map_path)
+    
+    patient = config.patient
+    recordings = config.recordings
+
+    #----------------------------
+    # load training data 
+    tr_frames = []  
+    tr_vxs = []     
+    tr_vys = [] 
+    print("Loading Train Files...")  
+    for idx, recording in enumerate(recordings[:-2]): 
+        print(f"{recording}.pt")
+        aligned_recording = torch.load( f"{recording}.pt", weights_only=False)
+        frame, vx, vy = aligned_recording
+        frame_t = len(frame)
+        frame = torch.cat(frame, dim=1)
+    
+        ## reshape according to the map
+        ordered_frame = torch.zeros(33,33,frame_t)
+        
+        for e in range(len(electrode_x)): 
+            x = electrode_x[e]
+            y = electrode_y[e]
+        
+            ordered_frame[x,y,:] = frame[e,:]
+    
+        if (config.fs_hz is not None and config.smooth_train_ms is not None and config.smooth_train_ms > 0):
+            ordered_frame = gaussian_smooth_time(ordered_frame, fs_hz=config.fs_hz, sigma_ms=float(config.smooth_train_ms))
+        if len(x_set) > 0:
+            ordered_frame = ordered_frame[x_set][:,y_set]
+        
+        tr_frames.append(ordered_frame)
+        tr_vxs.append(vx)
+        tr_vys.append(vy)
+    
+    
+    val_frames = [] 
+    val_vxs = []     
+    val_vys = []     
+    print("Loading Val Files...")  
+    print(f"{recordings[-2]}.pt")
+    aligned_recording = torch.load( f"{recordings[-2]}.pt", weights_only=False)
+    frame, vx, vy = aligned_recording
+    frame_t = len(frame)
+    frame = torch.cat(frame, dim=1)
+    
+    ## reshape according to the map
+    ordered_frame = torch.zeros(33,33,frame_t)
+    
+    for e in range(len(electrode_x)): 
+        x = electrode_x[e]
+        y = electrode_y[e]
+    
+        ordered_frame[x,y,:] = frame[e,:]
+    if (config.fs_hz is not None and config.smooth_val_ms is not None and config.smooth_val_ms > 0):
+        ordered_frame = gaussian_smooth_time(ordered_frame, fs_hz=config.fs_hz, sigma_ms=float(config.smooth_val_ms))
+
+    if len(x_set) > 0:
+        ordered_frame = ordered_frame[x_set][:,y_set]
+        
+    val_frames.append(ordered_frame)
+    val_vxs.append(vx)
+    val_vys.append(vy)
+
+    tst_frames = [] 
+    tst_vxs = []     
+    tst_vys = []     
+    print("Loading Test Files...")  
+    print(f"{recordings[-1]}.pt")
+    aligned_recording = torch.load( f"{recordings[-1]}.pt", weights_only=False)
+    frame, vx, vy = aligned_recording
+    frame_t = len(frame)
+    frame = torch.cat(frame, dim=1)
+    
+    ## reshape according to the map
+    ordered_frame = torch.zeros(33,33,frame_t)
+    
+    for e in range(len(electrode_x)): 
+        x = electrode_x[e]
+        y = electrode_y[e]
+    
+        ordered_frame[x,y,:] = frame[e,:]
+    if (config.fs_hz is not None and config.smooth_val_ms is not None and config.smooth_val_ms > 0):
+        ordered_frame = gaussian_smooth_time(ordered_frame, fs_hz=config.fs_hz, sigma_ms=float(config.smooth_val_ms))
+
+    if len(x_set) > 0:
+        ordered_frame = ordered_frame[x_set][:,y_set]
+        
+    tst_frames.append(ordered_frame)
+    tst_vxs.append(vx)
+    tst_vys.append(vy)
+
+    #----------
+    batch_size = 64
+    stride_length = 20
+    
+    CD_train = FrameDataset2D(tr_frames, tr_vxs, tr_vys, trial_length = config.trial_length, stride = stride_length)
+    train_loader = DataLoader(CD_train, batch_size=batch_size, shuffle=True)
+    
+    CD_valid = FrameDataset2D(val_frames, val_vxs, val_vys, trial_length = config.trial_length, stride = stride_length)
+    valid_loader = DataLoader(CD_valid, batch_size=batch_size, shuffle=True)
+    
+    CD_test = FrameDataset2D(tst_frames, tst_vxs, tst_vys, trial_length = config.trial_length, stride = stride_length)
+    test_loader = DataLoader(CD_test, batch_size=1, shuffle=False)
+
+    return train_loader, valid_loader, test_loader
+
 def CNN3D_train(model, optimizer, criterion, config, train_loader, valid_loader):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     model = model.to(device)
     n_epochs = config.epochs
-    print(n_epochs, "epochs")
+
+    patience = config.patience
+    best_val_loss = float("inf")
+    epochs_without_improvement = 0
+
     for epoch in range(n_epochs):
         model.train()
         running_loss = 0.0
     
         for x, y in train_loader:
+            #print(x.shape)
+            
             # Rearrange y to [B, T, 2] to match model output
             y = y.permute(0, 2, 1)
             x = x.unsqueeze(-1)
@@ -469,6 +674,78 @@ def CNN3D_train(model, optimizer, criterion, config, train_loader, valid_loader)
     
         avg_val_loss = val_loss / len(valid_loader)
         print(f'Epoch {epoch}/{n_epochs}: train:{avg_train_loss}  val:{avg_val_loss}')
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            epochs_without_improvement = 0
+
+            # Save best model
+            torch.save(model.state_dict(), "best_model.pt")
+
+        else:
+            epochs_without_improvement += 1
+
+            if epochs_without_improvement >= patience:
+                print(f"Early stopping after {epoch + 1} epochs")
+                break
+    model.load_state_dict(torch.load("best_model.pt"))
+def CNN3D_test(model, test_loader, config):
+    model.eval()
+    test_loss = 0.0
+    test_count = 0
+    all_preds, all_tgts = [], []
+    with torch.no_grad():
+        for x, y in test_loader:
+            x = x.to('cuda')
+            y = y.to('cuda')
+            x = x.unsqueeze(-1) # adding a feature dim
+            y = y.permute(0,2,1)
+            vel_targets = y[..., 0:2]
+            vel_seq = model(x)
+            tgt_last = vel_targets[:, -1, :]
+    
+            
+            all_preds.append(vel_seq.cpu().numpy())
+            all_tgts.append(tgt_last.cpu().numpy())
+            test_count += x.size(0)
+            
+        test_loss /= test_count
+        preds = np.concatenate(all_preds, axis=0)
+        tgts = np.concatenate(all_tgts, axis=0)
+        r2x = r2_score(tgts[:, 0], preds[:, 0])
+        r2y = r2_score(tgts[:, 1], preds[:, 1])
+        score = r2x + r2y
+    return score
+
+def CNN3D_predict(model, test_loader):
+    model.eval()
+    test_loss = 0.0
+    test_count = 0
+    all_preds, all_tgts = [], []
+    with torch.no_grad():
+        for x, y in test_loader:
+            x = x.to('cuda')
+            y = y.to('cuda')
+            x = x.unsqueeze(-1) # adding a feature dim
+            y = y.permute(0,2,1)
+            vel_targets = y[..., 0:2]
+            vel_seq = model(x)
+            tgt_last = vel_targets[:, -1, :]
+
+            
+            all_preds.append(vel_seq.cpu().numpy())
+            all_tgts.append(tgt_last.cpu().numpy())
+            test_count += x.size(0)
+            
+        test_loss /= test_count
+        preds = np.concatenate(all_preds, axis=0)
+        tgts = np.concatenate(all_tgts, axis=0)
+        r2x = r2_score(tgts[:, 0], preds[:, 0])
+        r2y = r2_score(tgts[:, 1], preds[:, 1])
+        score = r2x + r2y
+
+    return tgts, preds
+
 
 
 
