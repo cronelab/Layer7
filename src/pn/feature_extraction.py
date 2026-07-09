@@ -10,6 +10,7 @@ from inspect import signature
 
 
 from intanutil import intan_rhd as intan 
+from pn.sig_proc import * 
 
 
 
@@ -264,3 +265,41 @@ def separate_trials_velocity(data, up_thrsh = 0.006, down_thrsh = 0.004, trial_t
         trial_list[-1].set_id(i)
         trial_lens.append(e-s)
     return trial_list
+
+class Trial():
+    def __init__(self,becog, ax, ay, adx, ady, aecog, trial_type,fs):
+        self.active_x = ax
+        self.active_y = ay
+        self.active_dx = adx
+        self.active_dy = ady
+        self.active_ecog = aecog
+
+        self.baseline_ecog = becog
+        self.trial_type = trial_type
+        self.features = {}
+        self.labels = {}
+        self.fs = fs
+        self.filt_data = None
+        self.trial_id = None
+    def add_features(self, features, feature_label):
+        self.features[feature_label] = features
+    def add_labels(self, labels, label_name):
+        self.labels[label_name] = labels
+    def set_filt_data(self,data):
+        self.filt_data = data
+    def set_id(self, id):
+        self.trial_id = id
+
+def extract_ssep_basic(PARAMETERS, trial):
+    trial.active_ecog = butter_bandpass_filter(trial.active_ecog, [4,300], fs=20000, order=5)
+    trial.baseline_ecog = butter_bandpass_filter(trial.active_ecog, [4,300], fs=20000, order=5)
+    
+    data_window = np.array((0,100)).astype(int)
+    data_window *= int(Fs_raw/1000)
+    amp_trial = np.zeros((200, 1024, int((data_window[1]-data_window[0]))))
+    count = 0 # Using count instead of enumerate here, in case you want to add critera for rejecting individual trials 
+    for t in tqdm(trig[:200]):
+        amp_trial[count, selected_chs, :] = neural_bp[selected_chs,t+data_window[0]:t+data_window[1]]
+        count += 1
+    ssep = np.mean(amp_trial,axis=0)
+    trial.add_features(ssep, 'ssep')
