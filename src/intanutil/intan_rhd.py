@@ -221,9 +221,11 @@ def read_dat_data(header, path, rescale_to_voltage =1):
         fn('supply.dat', 'supply_voltage_data', lambda x: x[::128])
 
     if header['num_board_adc_channels']:
-        # fn('analogin.dat', 'board_adc_data', dtype = "<i2")       # signed
-        fn('analogin.dat', 'board_adc_data')                        # unsigned
-
+        try:
+            # fn('analogin.dat', 'board_adc_data', dtype = "<i2")       # signed
+            fn('analogin.dat', 'board_adc_data')                        # unsigned
+        except:
+            print("ISSUE WITH ANALOGIN")
     if header['num_board_dig_in_channels']:
         fn('digitalin.dat', 'board_dig_in_raw')
 
