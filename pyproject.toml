@@ -9,6 +9,8 @@ dependencies = [
     "seaborn>=0.13.2",
     "torch",
     "neurodsp",
+    "ezmsg",
+    "CorticomUnits",
 ]
 
 [build-system]
@@ -27,6 +29,11 @@ where = ["src"]
 torch = [
   { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
+
+# Note: This package is found on CroneLab git. 
+CorticomUnits = {path = "C:/Users/Becca/Documents/CorticomUnits"}
+
+
 
 [[tool.uv.index]]
 name = "pytorch-cu128"

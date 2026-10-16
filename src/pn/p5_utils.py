@@ -2,6 +2,7 @@
 import os
 import torch
 import numpy as np
+import matplotlib.pyplot as plt
 from enum import Enum
 
 
@@ -322,5 +323,81 @@ def calc_results(FAILURE_TIME_THRSH = 60):
         return df
 
 
+def split_preprocessed_pn(tgts, preds, thrsh = 0.15, plot_thrsh=True):
+    dx = tgts[:,0]
+    dy = tgts[:,1]
 
+    mvmt = dx**2 + dy**2 
+    T = len(mvmt)
+    if(plot_thrsh):
+        fig, ax = plt.subplots(1,1, figsize = (15,5));
+        plt.plot(mvmt)
+        plt.plot([0,T], [thrsh, thrsh])
+
+    
+    ## Split into trials 
+    start_idxs = []
+    end_idxs = []
+
+    T = len(mvmt)
+    mstate = "rest"
+    for t in range(T):
+        match mstate:
+            case "rest":
+                if mvmt[t] > thrsh:
+                    start_idxs.append(t)
+                    mstate = "moving"
+            case "moving":
+                if mvmt[t] < thrsh:
+                    end_idxs.append(t)
+                    mstate = "rest"
+            case _:
+                print("invalid state")
+    x_values = []
+    y_values = []
+    angle_bins = []
+    x_hat_values = []
+    y_hat_values = []
+
+    
+
+    for trial in range(len(start_idxs)):
+        t1 = start_idxs[trial]
+        t2 = end_idxs[trial]
+    
+        dx = tgts[t1 : t2,0],#actove dx
+        dx = np.squeeze(dx) 
+    
+        dy = tgts[t1:t2,1], #active dy
+        dy = np.squeeze(dy)
+        
+        dx_hat = preds[t1 : t2,0]
+        dx_hat = np.squeeze(dx_hat)
+        dy_hat = preds[t1 : t2,1]
+        dy_hat = np.squeeze(dy_hat)
+
+        x_ =  np.cumsum(dx)  
+        y_ =  np.cumsum(dy)  
+        xhat_ =  np.cumsum(dx_hat)  
+        yhat_ =  np.cumsum(dy_hat) 
+    
+        angle = 180/np.pi* np.atan2(  y_[-1] - y_[0], x_[-1] - x_[0] ) 
+    
+        angle_class = int( np.rint(angle / 45) + 4)
+        if angle_class == 8:
+            angle_class = 0
+
+        x_values.append(x_)
+        y_values.append(y_)    
+        x_hat_values.append(xhat_)
+        y_hat_values.append(yhat_)
+        angle_bins.append(angle_class)
+
+    return {'x_values': x_values,
+            'y_values': y_values,
+            'x_hat_values': x_hat_values,
+            'y_hat_values': y_hat_values,
+            'angle_bins': angle_bins, 
+            'num_trials': len(angle_bins)
+            }
 

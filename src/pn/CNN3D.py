@@ -52,7 +52,7 @@ class Config:
                 self.temporal_kernel_padding =  0 #int(self.temporal_kernel_stride/2)
 
                 # calculat post CNN shape
-                self.xy_dim = int(( 32 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
+                self.xy_dim = int(( 33 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
                 t_dim = int(( self.trial_length - self.temporal_kernel_size) / self.temporal_kernel_stride )  + 1
                 self.in_channels: int = self.xy_dim**2 *self.num_kernels
 
@@ -93,7 +93,7 @@ class Config:
                 self.temporal_kernel_padding =  0 #int(self.temporal_kernel_stride/2)
 
                 # calculat post CNN shape
-                self.xy_dim = int(( 32 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
+                self.xy_dim = int(( 33 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
                 t_dim = int(( self.trial_length - self.temporal_kernel_size) / self.temporal_kernel_stride )  + 1
                 self.in_channels: int = self.xy_dim**2 *self.num_kernels
 
@@ -138,7 +138,7 @@ class Config:
                 self.temporal_kernel_padding =  0 #int(self.temporal_kernel_stride/2)
 
                 # calculat post CNN shape
-                self.xy_dim = int(( 32 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
+                self.xy_dim = int(( 33 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
                 t_dim = int(( self.trial_length - self.temporal_kernel_size) / self.temporal_kernel_stride )  + 1
                 self.in_channels: int = self.xy_dim**2 *self.num_kernels
 
@@ -186,7 +186,7 @@ class Config:
                 self.temporal_kernel_padding =  0 #int(self.temporal_kernel_stride/2)
 
                 # calculat post CNN shape
-                self.xy_dim = int(( 32 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
+                self.xy_dim = int(( 33 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
                 t_dim = int(( self.trial_length - self.temporal_kernel_size) / self.temporal_kernel_stride )  + 1
                 self.in_channels: int = self.xy_dim**2 *self.num_kernels
 
@@ -235,7 +235,7 @@ class Config:
                 self.temporal_kernel_padding =  0 #int(self.temporal_kernel_stride/2)
 
                 # calculat post CNN shape
-                self.xy_dim = int(( 32 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
+                self.xy_dim = int(( 33 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
                 t_dim = int(( self.trial_length - self.temporal_kernel_size) / self.temporal_kernel_stride )  + 1
                 self.in_channels: int = self.xy_dim**2 *self.num_kernels
 
@@ -254,56 +254,53 @@ class Config:
                 self.weight_decay: float = 4.5e-3
                 self.learning_rate: float = 3e-4
             
-            case 102005411:
-                self.patient = Path(self.main_data_path + "/NSR-102-005").expanduser()
-
-                '''
-                recording_ids = [key for key in p5u.train_block_id.keys()]
-                train_len = int(np.floor(0.8*len(recording_ids)))
-                train_ids = recording_ids[:train_len]
-                recording_ids = train_ids
-                '''
-                #recording_ids = [key for key in p5u.train_block_id.keys()]
-
-                #recording_ids = [175,176, 177, 188, 189, 190, 203,211,211] # hpo on
-                recording_ids = [175,176, 177, 188, 189, 190, 203]  #hpo on 6/25
-                self.recordings = []
-                for id in recording_ids:
-                    filepath = p5u.train_block_id[id].split("\\")
-                    if (os.path.exists(self.patient.joinpath(filepath[0], filepath[-1]+"_hga.pt"))):
-                        self.recordings.append(
-                            self.patient.joinpath(filepath[0], filepath[-1]+"_hga") )
-
-               # Model parameters
-                # CNNN
-                self.trial_length = 350   
-                self.num_kernels = 6
-                self.spatial_kernel_size = 9
-                self.temporal_kernel_size = 40
-                self.spatial_kernel_stride = 1
-                self.temporal_kernel_stride = 3
-                self.spatial_kernel_padding =  0 #int(self.spatial_kernel_stride/2)
-                self.temporal_kernel_padding =  0 #int(self.temporal_kernel_stride/2)
-
-                # calculat post CNN shape
-                self.xy_dim = int(( 32 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
-                t_dim = int(( self.trial_length - self.temporal_kernel_size) / self.temporal_kernel_stride )  + 1
-                self.in_channels: int = self.xy_dim**2 *self.num_kernels
-
-                self.rnn_hidden_size: int = 384
-                self.n_features: int = 1
-                self.n_labels: int = 2
-                self.bidirectional: bool = True
-                self.batch_size: int = 64
-                self.rnn_layers: int = 4
+            case 1020052:
+                            
+                    self.patient = Path(self.main_data_path + "/NSR-102-005").expanduser()
                 
-                self.cnn_dropout: float = 0.6
-                self.rnn_dropout: float = 0.2
-                
-                # Training
-                self.epochs: int = 10
-                self.weight_decay: float = 4.5e-3
-                self.learning_rate: float = 3e-4
+
+                    self.recordings = [
+                        self.patient.joinpath("Session3", "webgrid-medium-random_FIH0117_train_3_1767117503028_251230_175823_hga"),
+                        self.patient.joinpath("Session3","webgrid-medium-random_FIH0117_train_4_1767117701812_251230_180141_hga"),
+                        self.patient.joinpath("Session3", "webgrid-medium-random_FIH0117_train_5_1767117907782_251230_180507_hga"),
+                        self.patient.joinpath("Session4", "webgrid-easy_FIH0117_train_1_1767129389894_251230_211629_hga"),
+                        self.patient.joinpath("Session4", "webgrid-easy_FIH0117_train_2_1767129551453_251230_211911_hga"),
+                        self.patient.joinpath("Session4","webgrid-easy_FIH0117_train_3_1767129740140_251230_212220_hga"), # validation
+                        self.patient.joinpath("Session5", "webgrid-medium_FIH0117_train_3_1767139362911_251231_000242_hga"),  # test
+
+                    ]
+
+                    
+                    # Model parameters
+                    # CNNN
+                    self.trial_length = 350   
+                    self.num_kernels = 6
+                    self.spatial_kernel_size = 9
+                    self.temporal_kernel_size = 40
+                    self.spatial_kernel_stride = 1
+                    self.temporal_kernel_stride = 3
+                    self.spatial_kernel_padding =  0 #int(self.spatial_kernel_stride/2)
+                    self.temporal_kernel_padding =  0 #int(self.temporal_kernel_stride/2)
+
+                    # calculat post CNN shape
+                    self.xy_dim = int(( 33 - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
+                    t_dim = int(( self.trial_length - self.temporal_kernel_size) / self.temporal_kernel_stride )  + 1
+                    self.in_channels: int = self.xy_dim**2 *self.num_kernels
+
+                    self.rnn_hidden_size: int = 384
+                    self.n_features: int = 1
+                    self.n_labels: int = 2
+                    self.bidirectional: bool = True
+                    self.batch_size: int = 64
+                    self.rnn_layers: int = 4
+                    
+                    self.cnn_dropout: float = 0.6
+                    self.rnn_dropout: float = 0.2
+                    
+                    # Training
+                    self.epochs: int = 100
+                    self.weight_decay: float = 4.5e-3
+                    self.learning_rate: float = 3e-4
             case _:
                 raise ValueError("Invalid participant")
 
@@ -444,31 +441,31 @@ class CNN2D_LSTM(nn.Module):
         # X: B, x, y, T F 
         B, Xd, Yd, T, F = x.shape
 
-        print(f'input shape {x.shape}')       #[64, 32, 32, 100, 1]
+        #print(f'input shape {x.shape}')       #[64, 32, 32, 100, 1]
         
         #x = x.contiguous().moveaxis(2, 3).reshape(B, T, C * F).permute(0, 2, 1)
         
         x =x.contiguous().permute(0,4,1,2,3)
-        print(f'data resized to {x.shape}')
+        #print(f'data resized to {x.shape}')
 
         
         x = self.input_dropout(x)  # dropout on raw inputs
-        print(f'data size after dropout {x.shape}')  # [64, 1, 32, 32, 100]
+        #print(f'data size after dropout {x.shape}')  # [64, 1, 32, 32, 100]
         
   
         # shape into conv layer (N,Cin,Din,Hin,Win) 
  
         x = self.preprocessing_conv(x)  # 3‑D conv
-        print(f'size after convolutions {x.shape}')
+        #print(f'size after convolutions {x.shape}')
  
         x = torch.flatten(x, start_dim = 1,end_dim = 3)   # flatten out the x,y convs
-        print(f'shape after flattening {x.shape}')
+        #print(f'shape after flattening {x.shape}')
         
         x = x.permute(2, 0, 1)  # shape -> (time, batch, features)
-        print(f'size going into LSTM {x.shape}')
+        #print(f'size going into LSTM {x.shape}')
         
         lstm_out, state = self.lstm(x, state)  # Bi‑LSTM
-        print(f'Out of LSTM {lstm_out.shape}')
+        #print(f'Out of LSTM {lstm_out.shape}')
         
         out = lstm_out[-1]  
         #print(f'out shape [out.shape]') 
