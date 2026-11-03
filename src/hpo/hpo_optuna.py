@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # from utils import *
 # import file_loader
-# import pn_demo     _model as pn
+# import pn_demo   _model as pn
 
 
 def train_epoch(model, optimizer, criterion, train_loader, device):
