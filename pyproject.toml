@@ -10,7 +10,9 @@ dependencies = [
     "torch",
     "neurodsp",
     "ezmsg",
-    "CorticomUnits",
+    # "CorticomUnits",
+    "ipykernel>=7.4.0",
+    "optuna>=5.0.0",
 ]
 
 [build-system]
@@ -31,7 +33,7 @@ torch = [
 ]
 
 # Note: This package is found on CroneLab git. 
-CorticomUnits = {path = "C:/Users/Becca/Documents/CorticomUnits"}
+# CorticomUnits = {path = "C:/Users/Becca/Documents/CorticomUnits"}
 
 
 
