@@ -14,13 +14,15 @@ import optuna
 from optuna.trial import Trial
 import logging
 import sys
+from pn.CNN3D import *
+from pn.principal_component_analysis import get_aligned_data_loader
 
 # Add parent directory to path to import modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils import *
-import file_loader
-import pn_demo_model as pn
+# from utils import *
+# import file_loader
+# import pn_demo     _model as pn
 
 
 def train_epoch(model, optimizer, criterion, train_loader, device):
@@ -208,6 +210,8 @@ def main():
                         help='Number of optimization trials')
     parser.add_argument('--n-epochs', type=int, default=100,
                         help='Number of training epochs per trial')
+    parser.add_argument('--do-cca', action='store_true',
+                        help='Whether to run CCA')
     args = parser.parse_args()
 
     # Setup logging with subject-specific filename
@@ -229,8 +233,11 @@ def main():
 
     # Load data once
     logging.info("Loading data...")
-    config = Config(subject_num=args.subject)
-    train_loader, valid_loader, test_loader = get_dataloaders(config,probe_map_path='../config/Precision_map_v2.xml')
+    if args.do_cca:
+        train_loader, valid_loader, test_loader = get_aligned_data_loader(args.subject, [2, 3, 4])
+    else:
+        config = Config(subject_num=args.subject)
+        train_loader, valid_loader, test_loader = get_dataloaders(config) #,probe_map_path='../config/Precision_map_v2.xml')
     dataloaders = (train_loader, valid_loader, test_loader)
     logging.info("Data loaded successfully")
 

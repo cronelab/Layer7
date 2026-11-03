@@ -12,7 +12,7 @@ from sklearn.metrics import r2_score
 from pn.input import *
 import pn.p5_utils as p5u
 class Config:
-    def __init__(self, subject_num, use_general_params = False,main_data_path = 'D:\\Becca\\Data\\PN_preprocessed'):
+    def __init__(self, subject_num, use_general_params = False, main_data_path = '/Users/orhanelam/Library/CloudStorage/OneDrive2-SharedLibraries-JohnsHopkins/cronelab - PN/JHU-preprocessed-features-V2'):
         # experiment parameters 
 
 
@@ -320,7 +320,7 @@ class Config:
                 self.spatial_kernel_padding =  0 #int(self.spatial_kernel_stride/2)
                 self.temporal_kernel_padding =  0 #int(self.temporal_kernel_stride/2)
 
-                # calculat post CNN shape
+                # calculate post CNN shape
                 self.x_dim = int(( self.grid_dim_x - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
                 self.y_dim = int(( self.grid_dim_y - self.spatial_kernel_size) / self.spatial_kernel_stride )  + 1
                 self.t_dim = int(( self.trial_length - self.temporal_kernel_size) / self.temporal_kernel_stride )  + 1
@@ -566,9 +566,11 @@ def get_dataloaders(config, x_set = [], y_set = []):
 
     if len(x_set) > 0:
         ordered_frame = ordered_frame[x_set][:,y_set]
-        
+    # print(f"Shape : {ordered_frame.shape}")
     val_frames.append(ordered_frame)
+    # print(f"Shape : {vx.shape[0]}")
     val_vxs.append(vx)
+    # print(f"Shape : {vy.shape[0]}")
     val_vys.append(vy)
 
     tst_frames = [] 
@@ -721,8 +723,8 @@ def CNN3D_predict(model, test_loader):
     all_preds, all_tgts = [], []
     with torch.no_grad():
         for x, y in test_loader:
-            x = x.to('cuda')
-            y = y.to('cuda')
+            x = x.to("cuda" if torch.cuda.is_available() else "cpu")
+            y = y.to("cuda" if torch.cuda.is_available() else "cpu")
             x = x.unsqueeze(-1) # adding a feature dim
             y = y.permute(0,2,1)
             vel_targets = y[..., 0:2]
