@@ -115,10 +115,10 @@ def objective(trial: Trial, subject_num, dataloaders, doing_cca, device, n_epoch
     # Create config with suggested hyperparameters
     config = Config(subject_num)
     # Suggest hyperparameters
-    config.num_kernels = trial.suggest_int('num_kernels', 2, 8, step=2)
-    config.spatial_kernel_size = trial.suggest_int('spatial_kernel_size', 1, 10, step=2)
+    config.num_kernels = 2 if doing_cca else trial.suggest_int('num_kernels', 2, 8, step=2)
+    config.spatial_kernel_size = 1 if doing_cca else trial.suggest_int('spatial_kernel_size', 1, 10, step=2)
     config.temporal_kernel_size = trial.suggest_int('temporal_kernel_size', 10, 50, step=10)
-    config.spatial_kernel_stride = trial.suggest_int('spatial_kernel_stride', 1, 10)
+    config.spatial_kernel_stride = 1 if doing_cca else trial.suggest_int('spatial_kernel_stride', 1, 10)
     config.temporal_kernel_stride = trial.suggest_int('temporal_kernel_stride', 1, 20)
     config.trial_length = trial.suggest_int('trial_length', 50,700, step=50)
     
