@@ -62,18 +62,12 @@ class CNN_LSTM(nn.Module):
 
         self.input_dropout = nn.Dropout(config.cnn_dropout)
 
-        print(f"Init Convolution Params: (spatial_kernel_stride: {config.spatial_kernel_stride}, spatial_kernel_size: {config.spatial_kernel_size}, num_kernels: {config.num_kernels}, xy_dim: {config.xy_dim}")
-        # print(f"Expected xy_dim: {int(( 33 - config.spatial_kernel_size) / config.spatial_kernel_stride )  + 1}")
-        expected_xy_dim = int(( 33 - config.spatial_kernel_size) / config.spatial_kernel_stride )  + 1
-        # print(f"Expected in_channels: {expected_xy_dim**2 * config.num_kernels}")
         self.preprocessing_conv = nn.Conv1d(
             in_channels = features,
             out_channels = config.num_kernels, # num kernels
             kernel_size = config.temporal_kernel_size,
             stride= config.temporal_kernel_stride,
             padding = config.temporal_kernel_padding)
-
-
 
         print(f"Init LSTM Params: {config.in_channels}")
         self.lstm = nn.LSTM(
@@ -82,7 +76,6 @@ class CNN_LSTM(nn.Module):
             num_layers=config.rnn_layers,
             dropout=config.rnn_dropout,
             bidirectional=config.bidirectional )
-
 
         self.fc = nn.Linear(config.rnn_hidden_size * directions, config.n_labels)
 
