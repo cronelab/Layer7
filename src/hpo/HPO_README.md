@@ -27,7 +27,7 @@ pip install optuna optuna-dashboard pandas matplotlib seaborn scikit-learn torch
 ### Stage 1: Initial Exploration
 
 Run fast exploration with single runs per configuration for a specific participant:
-
+uv sync && uv run hpo_optuna.py --subject 2 --data-path “/home/oelam/pn-data/JHU-preprocessed-features-V2/“ --do-cca && validate_best_configs.py --subject 3
 ```bash
 cd hpo
 python hpo_optuna.py --subject 3

@@ -15,7 +15,7 @@ from optuna.trial import Trial
 import logging
 import sys
 from pn.CNN3D import *
-from pn.principal_component_analysis import get_aligned_data_loader
+from pn.principal_component_analysis import get_aligned_data_loader, CNN_LSTM
 
 # Add parent directory to path to import modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -95,13 +95,14 @@ def evaluate_model(model, test_loader, device):
     return score/2
 
 
-def objective(trial: Trial, subject_num, dataloaders, device, n_epochs=100, n_repeats=1):
+def objective(trial: Trial, subject_num, dataloaders, doing_cca, device, n_epochs=100, n_repeats=1):
     """
     Optuna objective function for hyperparameter optimization.
 
     Args:
         trial: Optuna trial object
         dataloaders: Tuple of (train_loader, valid_loader, test_loader)
+        doing_cca: Whether this is in the latent space or not
         device: torch device
         n_epochs: Number of training epochs
         n_repeats: Number of times to repeat training with same config (for variance)
@@ -122,7 +123,7 @@ def objective(trial: Trial, subject_num, dataloaders, device, n_epochs=100, n_re
     config.trial_length = trial.suggest_int('trial_length', 50,700, step=50)
     
     # Update derived parameters
-    config.xy_dim = int((32 - config.spatial_kernel_size) / config.spatial_kernel_stride) + 1
+    config.xy_dim = int((33 - config.spatial_kernel_size) / config.spatial_kernel_stride) + 1
     config.in_channels = config.xy_dim**2 * config.num_kernels
 
     config.rnn_hidden_size = trial.suggest_categorical('rnn_hidden_size', [128, 256, 384, 512, 640, 800])
@@ -145,13 +146,15 @@ def objective(trial: Trial, subject_num, dataloaders, device, n_epochs=100, n_re
 
         # Build model
         try:
-            model = CNN2D_LSTM(config).to(device)
+            model = CNN2D_LSTM(config).to(device) if not doing_cca else CNN_LSTM(config).to(device)
             optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
             criterion = torch.nn.MSELoss(reduction='sum')
         except Exception as e:
             logging.error(f"Error creating model: {e}")
             return float('-inf')
 
+        print(f"In Channels (input_size): {config.in_channels}")
+        print(f"LSTM input_size: {model.lstm.input_size}")
         # Training loop with pruning
         best_val_score = float('-inf')
 
@@ -242,8 +245,9 @@ def main():
     logging.info("Data loaded successfully")
 
     # Create study with subject-specific name and database
-    study_name = f'repeat_cnn2d_lstm_hpo_subject{args.subject}'
-    db_path = f'sqlite:///hpo_optuna_subject{args.subject}.db'
+    cca_prefix = "_cca" if args.do_cca else ""
+    study_name = f'repeat_cnn2d_lstm_hpo_subject{args.subject}{cca_prefix}'
+    db_path = f'sqlite:///hpo_optuna_subject{args.subject}{cca_prefix}.db'
 
     study = optuna.create_study(
         direction='maximize',
@@ -277,7 +281,7 @@ def main():
     logging.info(f"Configuration: {n_trials} trials, {n_epochs} epochs, {n_repeats} repeat(s) per config")
 
     study.optimize(
-        lambda trial: objective(trial,args.subject, dataloaders, device, n_epochs=n_epochs, n_repeats=n_repeats),
+        lambda trial: objective(trial, args.subject, dataloaders,  args.do_cca, device, n_epochs=n_epochs, n_repeats=n_repeats),
         n_trials=n_trials,
         timeout=None,
         n_jobs=1,  # Use 1 for GPU, increase for CPU parallelization
@@ -298,7 +302,7 @@ def main():
 
     # Save results
     results_df = study.trials_dataframe()
-    results_csv = f'hpo_optuna_results_subject{args.subject}.csv'
+    results_csv = f'hpo_optuna_results_subject{args.subject}{cca_prefix}.csv'
     results_df.to_csv(results_csv, index=False)
     logging.info(f"\nResults saved to '{results_csv}'")
 

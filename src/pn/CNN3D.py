@@ -12,7 +12,7 @@ from sklearn.metrics import r2_score
 from pn.input import *
 import pn.p5_utils as p5u
 class Config:
-    def __init__(self, subject_num, use_general_params = False, main_data_path = '/Users/orhanelam/Library/CloudStorage/OneDrive2-SharedLibraries-JohnsHopkins/cronelab - PN/JHU-preprocessed-features-V2'):
+    def __init__(self, subject_num, use_general_params = False, main_data_path = '/home/oelam/pn-data/JHU-preprocessed-features-V2'):
         # experiment parameters 
 
 
@@ -409,21 +409,25 @@ class CNN2D_LSTM(nn.Module):
         super().__init__()
 
         self.config = config
+        print(f"Config: {config}")
         directions = 2 if config.bidirectional else 1
 
         self.input_dropout = nn.Dropout(config.cnn_dropout)
 
-
+        print(f"Init Convolution Params: (spatial_kernel_stride: {config.spatial_kernel_stride}, spatial_kernel_size: {config.spatial_kernel_size}, num_kernels: {config.num_kernels}, xy_dim: {config.xy_dim}")
+        print(f"Expected xy_dim: {int(( 33 - config.spatial_kernel_size) / config.spatial_kernel_stride )  + 1}")
+        expected_xy_dim = int(( 33 - config.spatial_kernel_size) / config.spatial_kernel_stride )  + 1
+        print(f"Expected in_channels: {expected_xy_dim**2 *config.num_kernels}")
         self.preprocessing_conv = nn.Conv3d(
-            in_channels = 1, 
+            in_channels = 1,
             out_channels = config.num_kernels, # num kernels 
             kernel_size = (config.spatial_kernel_size, config.spatial_kernel_size, config.temporal_kernel_size),
             stride= (config.spatial_kernel_stride, config.spatial_kernel_stride, config.temporal_kernel_stride),  
             padding = (config.spatial_kernel_padding, config.spatial_kernel_padding, config.temporal_kernel_padding)  )  
 
-    
 
 
+        print(f"Init LSTM Params: {config.in_channels}")
         self.lstm = nn.LSTM(
             input_size=config.in_channels,
             hidden_size=config.rnn_hidden_size,
@@ -450,20 +454,19 @@ class CNN2D_LSTM(nn.Module):
 
         
         x = self.input_dropout(x)  # dropout on raw inputs
-        #print(f'data size after dropout {x.shape}')  # [64, 1, 32, 32, 100]
+        # print(f'data size after dropout {x.shape}')  # [64, 1, 32, 32, 100]
         
   
         # shape into conv layer (N,Cin,Din,Hin,Win) 
  
         x = self.preprocessing_conv(x)  # 3‑D conv
-        #print(f'size after convolutions {x.shape}')
+        # print(f'size after convolutions {x.shape}')
  
         x = torch.flatten(x, start_dim = 1,end_dim = 3)   # flatten out the x,y convs
         #print(f'shape after flattening {x.shape}')
         
         x = x.permute(2, 0, 1)  # shape -> (time, batch, features)
-        #print(f'size going into LSTM {x.shape}')
-        
+        # print(f'size going into LSTM {x.shape}')
         lstm_out, state = self.lstm(x, state)  # Bi‑LSTM
         #print(f'Out of LSTM {lstm_out.shape}')
         
@@ -574,7 +577,7 @@ def get_dataloaders(config, x_set = [], y_set = []):
     val_vys.append(vy)
 
     tst_frames = [] 
-    tst_vxs = []     
+    tst_vxs = []
     tst_vys = []     
     print("Loading Test Files...")  
     print(f"{recordings[-1]}.pt")
